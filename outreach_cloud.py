@@ -116,7 +116,11 @@ def cmd_send(max_n=BATCH, deadline=None):
     c = db()
     conf = cfg(c)
     left, done = quota_left(c)
-    todo = targets(c, min(left, max_n))
+    n = min(left, max_n)
+    if n <= 0:
+        log(f"send: za 24 h odeslano {done}/{QUOTA_24H} - limit vycerpan, cekam")
+        return 0
+    todo = targets(c, n)[:n]
     log(f"send: za 24 h odeslano {done}/{QUOTA_24H}, v teto davce {len(todo)}, zbyva v seznamu {len(targets(c))}")
     if not todo:
         return 0
