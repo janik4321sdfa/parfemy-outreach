@@ -309,7 +309,7 @@ def cmd_check():
     by_dom = {}
     for s, e, m in out:
         by_dom.setdefault(e.split("@")[1].lower(), s)
-    m = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+    m = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=120)
     m.login(conf["gmail"], password())
     since = (datetime.date.today() - datetime.timedelta(days=60)).strftime("%d-%b-%Y")
     new = 0
