@@ -1,0 +1,6 @@
+state.sqlite
+state.sqlite.tmp
+state.enc
+state.enc.tmp
+__pycache__/
+*.pyc

@@ -1,0 +1,67 @@
+name: Parfemy Outreach
+
+# Jeden beh = ~5,5 h: posila maily (max 400 / klouzavych 24 h, pauza 20-50 s),
+# kazdych 15 min cte postu a pri odpovedi ANO posle oznameni na Discord.
+# Na konci behu sam nastartuje dalsi beh (SELF_TOKEN). Cron je jen zaloha.
+# concurrency = nikdy nebezi dva behy najednou (jinak by hrozilo dvoji odeslani).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */2 * * *"
+
+concurrency:
+  group: parfemy-outreach
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      TZ: Europe/Prague
+      STATE_KEY: ${{ secrets.STATE_KEY }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+      SAVE_CMD: bash save_state.sh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Zavislosti
+        run: python -m pip install --quiet cryptography
+
+      - name: Nacti stav
+        run: |
+          git fetch -q origin state
+          git show origin/state:state.enc > state.enc
+          python statebox.py unpack
+          python outreach_cloud.py stats
+
+      - name: Odesilani + kontrola posty
+        run: python -u outreach_cloud.py loop --minutes 325
+
+      - name: Uloz stav
+        if: always()
+        run: |
+          if [ -f state.sqlite ]; then bash save_state.sh; fi
+
+      - name: Nastartuj dalsi beh
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SELF_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "::warning::SELF_TOKEN chybi, pokracuje se jen pres cron"; exit 0; fi
+          for i in 1 2 3; do
+            gh workflow run outreach.yml --ref main && { echo "dalsi beh nastartovan"; exit 0; }
+            sleep 5
+          done
+          echo "::warning::dalsi beh se nepodarilo nastartovat, pokracuje se pres cron"
